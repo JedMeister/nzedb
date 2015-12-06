@@ -1,0 +1,20 @@
+#include <turnkey/base>
+#include <turnkey/lamp>
+
+php-pear
+php5-curl
+php5-gd
+php5-igbinary
+
+/* php5-apcu conflicts with php5-xcache so needs to be installed later */
+
+mediainfo
+lame
+libav-tools
+unrar /* non-free */
+p7zip-full
+znc
+
+php5-dev           /* build dependency for simple_php_yenc_decode */
+libboost-regex-dev /* build dependency for simple_php_yenc_decode */
+g++                /* build dependency for simple_php_yenc_decode */

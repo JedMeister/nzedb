@@ -1,0 +1,23 @@
+#!/bin/bash -e
+# set nZEDb admin password and email
+
+. /etc/default/inithooks
+
+[ -e $INITHOOKS_CONF ] && . $INITHOOKS_CONF
+
+if [ -z "$APP_NEWS_SERVER" ] && [ -z "$APP_NEWS_PORT" ]; then
+    if [ -n "$APP_PASS" ] && [ -n "$APP_EMAIL" ]; then
+        APP_NEWS_SERVER="DEFAULT"
+        APP_NEWS_PORT="DEFAULT"
+    fi
+fi
+
+
+$INITHOOKS_PATH/bin/nzedb.py \
+    --pass="$APP_PASS" \
+    --email="$APP_EMAIL" \
+I   --news-server="$APP_NEWS_SERVER" \ 
+    --news-port="$APP_NEWS_PORT" \
+    --news-user="$APP_NEWS_USER" \
+    --news-pass="$APP_NEWS_PASS"
+

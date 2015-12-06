@@ -1,0 +1,15 @@
+#!/bin/sh -ex
+
+GIT_URL="https://github.com"
+WEBROOT=/var/www/nzedb
+SRC=/usr/local/src/php-yenc
+
+clone() {
+    git clone --depth 1 ${GIT_URL}/$1 $2 
+}
+
+
+clone nZEDb/nZEDb $WEBROOT
+
+clone kevinlekiller/simple_php_yenc_decode $SRC
+

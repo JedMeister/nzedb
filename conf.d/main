@@ -1,0 +1,105 @@
+#!/bin/sh -ex
+
+DB_USER=nzedb
+DB_NAME=nzedb
+DB_PASS=$(mcookie)
+
+WEBROOT=/var/www/nzedb
+SRC=/usr/local/src/php-yenc
+
+DEBIAN_FRONTEND=noninteractive apt-get purge php5-xcache --assume-yes
+DEBIAN_FRONTEND=noninteractive apt-get install php5-apcu --assume-yes
+
+#tweak MySQL conf
+CONF=/etc/mysql/my.cnf
+sed -i "/ssl-key/a group_concat_max_len = 8192" $CONF
+sed -i "1,/key_buffer/{/key_buffer/ s/=.*/= 256M/}" $CONF
+#max_allowed_packet = 16M set by default
+
+#tweal PHP conf
+CONF=/etc/php5/*/php.ini
+sed -i "/^max_execution_time / s|=.*|= 120|" $CONF
+sed -i "/^memory_limit / s|=.*|= 1024M|" $CONF
+sed -i "/^;date.timezone / s|;||" $CONF
+sed -i "/^date.timezone / s|=.*|= Etc/UTC|" $CONF
+sed -i "/^error_reporting / s|=.*|= E_ALL|" $CONF
+sed -i "/^log_errors / s|=.*|= On|" $CONF
+sed -i "/error_log = php_errors.log/ s|;||" $CONF
+
+#initial nZEDb setup
+CONF=$WEBROOT/nzedb/config/settings.php
+USER=www-data:www-data
+cp $WEBROOT/nzedb/config/settings.example.php $CONF
+sed -i "/CACHE_TYPE/ s|,.*)|, 3)|" $CONF
+sed -i "/CACHE_SERIALIZER/ s|,.*)|, 1)|" $CONF 
+sed -i "/LOGGING_LOG_FOLDER/ s|,.*)|,'/var/log/nzed')|" $CONF
+chown -R $USER $WEBROOT/libs/smarty/templates_c
+chown -R $USER $WEBROOT/resources
+chown -R $USER $WEBROOT/www
+chown -R $USER $WEBROOT/nzedb/config/.
+chown -R $USER /var/lib/php5/sessions
+mkdir -p /var/log/nzedb
+chown -R $USER /var/log/nzedb
+
+#install php-yenc
+sed -i "s|sudo ||" $SRC/ubuntu.sh
+sed -i "s|.*apt-get.*||" $SRC/ubuntu.sh
+cd $SRC
+$SRC/ubuntu.sh
+#cleanup
+rm -rf $SRC
+DEBIAN_FRONTEND=noninteractive apt-get purge libboost-regex-dev g++ php5-dev --assume-yes
+DEBIAN_FRONTEND=noninteractive apt-get autoremove --assume-yes
+
+#apache conf
+a2dissite 000-default
+a2ensite nzedb
+a2enmod rewrite
+
+#set up APC caching
+cat >> /etc/php5/mods-available/apcu.ini <<EOF
+apc.enabled=1
+apc.shm_size=32M
+apc.ttl=7200
+apc.enable_cli=1
+apc.serializer=igbinary
+EOF
+
+#start services
+/etc/init.d/apache2 start
+/etc/init.d/mysql start
+sleep 10
+
+#set up MySQL DB
+# setup the database
+MYSQL_BATCH="mysql --user=root --password=$MYSQL_PASS --batch"
+MYSQL_ADMIN="mysqladmin --user=root --password=$MYSQL_PASS"
+
+$MYSQL_ADMIN create $DB_NAME
+$MYSQL_BATCH --execute "grant all privileges on $DB_NAME.* to $DB_USER@localhost identified by '$DB_PASS';"
+$MYSQL_BATCH --execute "grant FILE on *.* to $DB_USER@localhost identified by '$DB_PASS';"
+
+#curl based install
+URL="http://127.0.0.1/install/"
+CURL="curl -L -c /tmp/cookie -b /tmp/cookie"
+
+$CURL $URL/step1.php
+
+DATA="db_system=mysql&host=&sql_port=&sql_socket=%2Fvar%2Frun%2Fmysqld%2Fmysqld.sock&user=$DB_USER&pass=$DB_PASS&db=$DB_NAME"
+$CURL $URL/step2.php? --data "$DATA"
+sleep 10
+DATA="cafile=&capath=%2Fetc%2Fssl%2Fcerts%2F&verifypeer=1&verifyhost=1&allowselfsigned=1"
+$CURL $URL/step3.php? --data "$DATA"
+DATA="server=news.example.com&user=&pass=&port=119&socket_timeout="
+$CURL $URL/step4.php? --data "$DATA"
+$CURL $URL/step5.php
+DATA="user=admin&fname=&lname=&pass=turnkey&email=admin%40example.com"
+$CURL $URL/step6.php? --data "$DATA"
+DATA="coverspath=%2Fvar%2Fwww%2Fnzedb%2Fresources%2Fcovers%2F&nzbpath=%2Fvar%2Fwww%2Fnzedb%2Fresources%2Fnzb%2F&tmpunrarpath=%2Fvar%2Fwww%2Fnzedb%2Fresources%2Ftmp%2Funrar%2F"
+$CURL $URL/step7.php? --data "$DATA"
+
+#tweak landing page
+$MYSQL_BATCH --execute "UPDATE $DB_NAME.page_contents SET title='Welcome to TurnKey Linux nZEDb Appliance.', body='<p>Please go to the <a href="/admin/">admin page</a> to finalize config and get started (you\'ll need to login with your admin password).</p><p>For further info and advanced config hints see the <a href="https://github.com/nZEDb/nZEDb/wiki">nZEDb wiki</a>.</p><p>Also since nZEDb is a fork of newznab, the API is compatible with sonarr, sickbeard, couchpotato, etc...</p>' WHERE id=1"
+
+/etc/init.d/apache2 stop
+/etc/init.d/mysql stop
