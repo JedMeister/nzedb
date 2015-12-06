@@ -1,7 +1,7 @@
 nZEDb - Usenet indexer
 ======================
 
-'nZEDb'_ automatically scans usenet, similar to the way google search 
+`nZEDb`_ automatically scans usenet, similar to the way google search 
 bots scan the internet. It does this by collecting usenet headers and 
 temporarily storing them in a database until they can be collated into 
 posts/releases. It provides a web-based front-end providing search, 
