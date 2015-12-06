@@ -1,3 +1,5 @@
+WEBMIN_FW_TCP_OUTCOMING += 119 563
+
 COMMON_CONF = apache-credit
 
 CREDIT_ANCHORTEXT = nZEDb Appliance
